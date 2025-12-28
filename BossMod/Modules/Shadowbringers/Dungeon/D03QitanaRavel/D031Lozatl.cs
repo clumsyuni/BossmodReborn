@@ -2,7 +2,8 @@ namespace BossMod.Shadowbringers.Dungeon.D03QitanaRavel.D031Lozatl;
 
 public enum OID : uint
 {
-    Boss = 0x27AF, //R=4.4
+    Boss = 0x28E7, // R=4.4
+    GravenGatekeep = 0x28E8,
     Helper = 0x233C
 }
 
@@ -30,23 +31,27 @@ class SunToss(BossModule module) : Components.SimpleAOEs(module, (uint)AID.SunTo
 class RonkanLight(BossModule module) : Components.GenericAOEs(module)
 {
     private static readonly AOEShapeRect rect = new(60f, 20f);
-    private AOEInstance[] _aoe = [];
+    private AOEInstance? _aoe;
 
-    public override ReadOnlySpan<AOEInstance> ActiveAOEs(int slot, Actor actor) => _aoe;
+    public override IEnumerable<AOEInstance> ActiveAOEs(BossModule module, int slot, Actor actor)
+    {
+        if (_aoe != null)
+            yield return _aoe.Value;
+    }
 
     public override void OnActorEAnim(Actor actor, uint state)
     {
-        void AddAOE(Angle rot) => _aoe = [new(rect, D031Lozatl.ArenaCenter, rot, WorldState.FutureTime(8d))];
-        if (state == 0x00040008u)
+        // 0x19D 
+        if (state == 0x19Du && (OID)actor.OID == OID.GravenGatekeep)
         {
-            if (actor.Position.AlmostEqual(new(8f, 328f), 1f))
-            {
-                AddAOE(90f.Degrees());
-            }
-            else if (actor.Position.AlmostEqual(new(-7f, 328f), 1f))
-            {
-                AddAOE(-90f.Degrees());
-            }
+            // Determine side based on statue X position relative to arena center
+            // Statues are roughly at X = -17.6 and X = +17.6
+            bool isLeft = actor.Position.X < module.Center.X;
+            
+            // 90 degrees points Left (West), -90 degrees points Right (East)
+            Angle rot = isLeft ? 90f.Degrees() : -90f.Degrees();
+
+            _aoe = new AOEInstance(rect, module.Center, rot, WorldState.FutureTime(8.2d));
         }
     }
 
@@ -54,7 +59,7 @@ class RonkanLight(BossModule module) : Components.GenericAOEs(module)
     {
         if (spell.Action.ID is (uint)AID.RonkanLightLeft or (uint)AID.RonkanLightRight)
         {
-            _aoe = [];
+            _aoe = null;
         }
     }
 }
@@ -75,7 +80,14 @@ class D031LozatlStates : StateMachineBuilder
 [ModuleInfo(BossModuleInfo.Maturity.Verified, Contributors = "Malediktus", GroupType = BossModuleInfo.GroupType.CFC, GroupID = 651, NameID = 8231)]
 public class D031Lozatl(WorldState ws, Actor primary) : BossModule(ws, primary, arena.Center, arena)
 {
-    public static readonly WPos ArenaCenter = new(default, 315f);
+    public static readonly WPos ArenaCenter = new(0f, 315f);
     private static readonly ArenaBoundsCustom arena = new([new Polygon(ArenaCenter, 19.5f * CosPI.Pi40th, 40)],
-    [new Rectangle(new(default, 335.1f), 20f, 2f), new Rectangle(new(default, 294.5f), 20f, 2f)]);
+    [new Rectangle(new(0f, 335.1f), 20f, 2f), new Rectangle(new(0f, 294.5f), 20f, 2f)]);
+
+    protected override void Update(int slot, Actor actor)
+    {
+        // Optional: The boss moves to Y=425 later. 
+        // If the arena bounds look wrong during the second half, 
+        // we can update Center here.
+    }
 }
